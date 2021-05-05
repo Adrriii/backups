@@ -6,13 +6,18 @@ $DAYS_FOREVER = [
     "10",
     "20"
 ];
-$DATABASES = [
-    "whattrack",
-    "arma",
-    "armap",
-    "quaver",
-    "stats"
+
+$SERVERS = [
+    "adri_server" => [
+        "ADDRESS" => "***REMOVED***",
+        "DBUSER" => "backup",
+        "DBPASS" => "xxxxxxxxxxxxxxx",
+        "DATABASES" => [
+            "whattrack",
+            "arma",
+            "armap",
+            "quaver",
+            "stats"
+        ]
+    ]
 ];
-$ADDRESS = "***REMOVED***";
-$DBUSER = "backup";
-$DBPASS = "xxxxxxxxxxxxxxxxxx";

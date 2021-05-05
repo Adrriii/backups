@@ -16,13 +16,24 @@ function is_file_outdated($filename) {
     return true;
 }
 
-function do_backup($db) {
-    global $ADDRESS, $DBUSER, $DBPASS;
-    exec("mysqldump --single-transaction -h $ADDRESS -u $DBUSER -p$DBPASS $db > ".date("Y-m-d")."-$db.sql");
+function do_backup($db, $server, $address, $dbuser, $dbpass) {
+    echo "Starting backup > ".date("Y-m-d")."-$db.sql\n";
+    exec("mysqldump --single-transaction -h $address -u $dbuser -p$dbpass $db > ".date("Y-m-d")."-$server-$db.sql");
 }
 
-foreach($DATABASES as $db) {
-    do_backup($db);
+foreach($SERVERS as $name => $server) {
+    foreach($server["DATABASES"] as $db) {
+        if(!isset($server["ADDRESS"])) {
+            echo "Server address is not set\n"; continue;
+        }
+        if(!isset($server["DBUSER"])) {
+            echo "Database user is not set\n"; continue;
+        }
+        if(!isset($server["DBPASS"])) {
+            echo "Database password is not set\n"; continue;
+        }
+        do_backup($db, $name, $server["ADDRESS"], $server["DBUSER"], $server["DBPASS"]);
+    }
 }
 
 foreach($existing as $filename) {
