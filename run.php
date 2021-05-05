@@ -4,8 +4,15 @@ include "config.php";
 
 $existing = glob("*.sql");
 
+function fail_with($message) {
+    echo "COULD NOT RUN SCRIPT : $message\n";
+    die();
+}
+
 function is_file_outdated($filename) {
     global $DAYS_FOREVER, $DAYS_KEEP;
+    if(!isset($DAYS_FOREVER)) fail_with("DAYS_FOREVER is not set in the config");
+    if(!isset($DAYS_KEEP)) fail_with("DAYS_KEEP is not set in the config");
 
     $parts = explode("-", $filename);
 
@@ -24,15 +31,10 @@ function do_backup($db, $server, $address, $dbuser, $dbpass) {
 
 foreach($SERVERS as $name => $server) {
     foreach($server["DATABASES"] as $db) {
-        if(!isset($server["ADDRESS"])) {
-            echo "Server address is not set\n"; continue;
-        }
-        if(!isset($server["DBUSER"])) {
-            echo "Database user is not set\n"; continue;
-        }
-        if(!isset($server["DBPASS"])) {
-            echo "Database password is not set\n"; continue;
-        }
+        if(!isset($server["ADDRESS"])) fail_with("Server address is not set");
+        if(!isset($server["DBUSER"])) fail_with("Database user is not set");
+        if(!isset($server["DBPASS"])) fail_with("Database password is not set");
+        
         do_backup($db, $name, $server["ADDRESS"], $server["DBUSER"], $server["DBPASS"]);
     }
 }
