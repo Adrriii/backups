@@ -1,11 +1,6 @@
 <?php
 
-$DAYS_KEEP = 7;
-$DAYS_FOREVER = [
-    "01",
-    "10",
-    "20"
-];
+include "config.php";
 
 $existing = glob("*.sql");
 
@@ -19,6 +14,15 @@ function is_file_outdated($filename) {
     if(date("Y-m-d", strtotime($parts[0]."-".$parts[1]."-".$parts[2])) >= date("Y-m-d", time() - (86400 * $DAYS_KEEP))) return false;
 
     return true;
+}
+
+function do_backup($db) {
+    global $ADDRESS, $DBUSER, $DBPASS;
+    exec("mysqldump --single-transaction -h $ADDRESS -u $DBUSER -p$DBPASS $db > ".date("Y-m-d")."-$db.sql");
+}
+
+foreach($DATABASES as $db) {
+    do_backup($db);
 }
 
 foreach($existing as $filename) {
