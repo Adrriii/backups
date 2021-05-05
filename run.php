@@ -17,8 +17,9 @@ function is_file_outdated($filename) {
 }
 
 function do_backup($db, $server, $address, $dbuser, $dbpass) {
-    echo "Starting backup > ".date("Y-m-d")."-$db.sql\n";
-    exec("mysqldump --single-transaction -h $address -u $dbuser -p$dbpass $db > ".date("Y-m-d")."-$server-$db.sql");
+    $filename = date("Y-m-d")."-$server-$db.sql";
+    echo "Starting backup for $db > $filename\n";
+    exec("mysqldump --single-transaction -h $address -u $dbuser -p$dbpass $db > $filename");
 }
 
 foreach($SERVERS as $name => $server) {
