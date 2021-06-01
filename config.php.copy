@@ -18,6 +18,12 @@ $SERVERS = [
             "armap",
             "quaver",
             "stats"
-        ]
+        ],
+        "FILES" => [
+            "/var/xxx/file.sh",
+        ],
+        "DIRS" => [
+            "/var/xxx/directory",
+        ],
     ]
 ];
