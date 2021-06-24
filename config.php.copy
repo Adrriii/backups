@@ -13,11 +13,7 @@ $SERVERS = [
         "DBUSER" => "backup",
         "DBPASS" => "xxxxxxxxxxxxxxx",
         "DATABASES" => [
-            "whattrack",
-            "arma",
-            "armap",
-            "quaver",
-            "stats"
+            "db_name",
         ],
         "FILES" => [
             "/var/xxx/file.sh",
