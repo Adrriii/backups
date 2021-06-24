@@ -9,7 +9,7 @@ $DAYS_FOREVER = [
 
 $SERVERS = [
     "adri_server" => [
-        "ADDRESS" => "***REMOVED***",
+        "ADDRESS" => "server_ip_adress",
         "DBUSER" => "backup",
         "DBPASS" => "xxxxxxxxxxxxxxx",
         "DATABASES" => [
