@@ -9,17 +9,20 @@ $DAYS_FOREVER = [
 
 $SERVERS = [
     "adri_server" => [
-        "ADDRESS" => "server_ip_adress",
-        "DBUSER" => "backup",
-        "DBPASS" => "xxxxxxxxxxxxxxx",
+        "ADDRESS" => "host_name",
+        "SFTPUSER" => "sftp_user",
+        "SFTPPASS" => "sftp_pass",
+        "DBUSER" => "db_user",
+        "DBPASS" => "db_pass",
         "DATABASES" => [
             "db_name",
         ],
         "FILES" => [
-            "/var/xxx/file.sh",
+            "/var/dir/example.txt",
+            "/lib/test.conf",
         ],
         "DIRS" => [
-            "/var/xxx/directory",
+            "/home/user_example",
         ],
     ]
 ];
