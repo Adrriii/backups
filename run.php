@@ -1,5 +1,7 @@
 <?php
 
+error_reporting(E_ALL ^ E_WARNING);
+
 include "config.php";
 
 $existing = glob("*.sql");
@@ -25,6 +27,10 @@ function is_file_outdated($filename) {
 
 function do_backup($db, $server, $address, $dbuser, $dbpass) {
     $filename = date("Y-m-d")."-$server-$db.sql";
+	if(file_exists($filename)) {
+		echo "Backup for $db already exists\n";
+		return;
+	}
     echo "Starting backup for $db > $filename\n";
     exec("mysqldump --single-transaction -h $address -u $dbuser -p$dbpass $db > $filename");
 }
@@ -34,13 +40,22 @@ function establish_sftp($server_name) {
 
     $host = $SERVERS["$server_name"]["ADDRESS"];
     $login = $SERVERS["$server_name"]["SFTPUSER"];
-    $pass = $SERVERS["$server_name"]["SFTPPASS"];
+    $pass = isset($SERVERS["$server_name"]["SFTPPASS"]) ? $SERVERS["$server_name"]["SFTPPASS"] : null;
 
-    $connection = ssh2_connect($host);
+	$pub = isset($SERVERS["$server_name"]["PUB"]) ? $SERVERS["$server_name"]["PUB"] : null;
+	$priv = isset($SERVERS["$server_name"]["PRIV"]) ? $SERVERS["$server_name"]["PRIV"] : null;
 
-    if (!ssh2_auth_password($connection, $login, $pass)) return false;
+	try {
+		$connection = ssh2_connect($host);
 
-    if (!$sftp = ssh2_sftp($connection)) return false;
+		if ($pass && !ssh2_auth_password($connection, $login, $pass)) return false;
+
+		if ($pub && $priv && !ssh2_auth_pubkey_file($connection, $login, $pub, $priv)) return false;
+
+		if (!$sftp = ssh2_sftp($connection)) return false;
+	} catch (Exception $e) {
+		return null;
+	}
 
     return [$connection,$sftp];
 }
@@ -48,13 +63,13 @@ function establish_sftp($server_name) {
 function save_dir($connection, $sftp, $dir, $dest_root) {
     $handle = opendir("ssh2.sftp://{$sftp}$dir");
     while($handle && ($file = readdir($handle)) !== false) {
-        if($file == "." || $file == ".." || !$file) continue;
+        if($file == "." || $file == ".." || $file == ".git" || !$file) continue;
         $name = "$dir/$file";
         $parent = "$dest_root/$dir";
         $local = "$dest_root/$name";
         if (!file_exists($parent)) mkdir($parent, 0777, true);
+		echo "Saving $name\n";
         if(!ssh2_scp_recv($connection, "$name", "$local")) {
-            echo "Could not download $name, it's a directory ($local)\n";
             save_dir($connection, $sftp, $name, $dest_root);
         }
     }
@@ -65,6 +80,7 @@ function save_file($connection, $sftp, $path, $dest_root) {
     $items = explode('/',$path);
     array_pop($items);
     mkdir($dest_root."/".join('/',$items), 0777, true);
+	echo "Saving $path\n";
     if(!ssh2_scp_recv($connection, "$path", "$dest_root/$path")) {
         echo "Could not download $name\n";
     }
@@ -95,6 +111,9 @@ foreach($SERVERS as $name => $server) {
     }
 
     $sftp_info = establish_sftp($name);
+	if (!$sftp_info) {
+		continue;
+	}
     $dest_root = date("Y-m-d")."-$name.d";
 
     mkdir($dest_root);
