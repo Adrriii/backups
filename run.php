@@ -48,6 +48,11 @@ function establish_sftp($server_name) {
 	try {
 		$connection = ssh2_connect($host);
 
+        if (!$connection) {
+            echo "Could not connect to $host using ssh2_connect\n";
+            return null;
+        }
+
 		if ($pass && !ssh2_auth_password($connection, $login, $pass)) return false;
 
 		if ($pub && $priv && !ssh2_auth_pubkey_file($connection, $login, $pub, $priv)) return false;
