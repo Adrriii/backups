@@ -11,7 +11,10 @@ $SERVERS = [
     "adri_server" => [
         "ADDRESS" => "host_name",
         "SFTPUSER" => "sftp_user",
-        "SFTPPASS" => "sftp_pass",
+        "SFTPPASS" => "sftp_pass", // Unadvised
+        "PUB" => "/path/rsa.pub",
+        "PRIV" => "/path/rsa",
+        "PORT" => 22,
         "DBUSER" => "db_user",
         "DBPASS" => "db_pass",
         "DATABASES" => [
@@ -26,3 +29,5 @@ $SERVERS = [
         ],
     ]
 ];
+
+$ERRORS = false;
