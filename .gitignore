@@ -2,5 +2,6 @@
 config.php
 
 *.sql
+*.docker.tar
 
 */
