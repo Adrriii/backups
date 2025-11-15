@@ -371,8 +371,7 @@ function backup_containers(SSHConnection $ssh, array $containers, $serverName) {
     $current = 0;
 
     foreach ($containers as $container) {
-        show_progress($current, $total, $container);
-        $current++;
+        show_progress($current, $total, $container . ' : committing...');
 
         // Commit the running container to an image
         $imageName = "{$container}_backup:latest";
@@ -383,6 +382,7 @@ function backup_containers(SSHConnection $ssh, array $containers, $serverName) {
             continue;
         }
 
+        show_progress($current, $total, $container . ' : saving...');
         // Save the committed image to a tarball on remote server
         $remoteFile = "/tmp/$datePrefix-$serverName-$container.docker.tar";
         $saveResult = $ssh->executeCommand("docker save -o $remoteFile $imageName");
@@ -393,47 +393,23 @@ function backup_containers(SSHConnection $ssh, array $containers, $serverName) {
             continue;
         }
 
+        show_progress($current, $total, $container . ' : downloading...');
         // Download the tar file
         $localFile = "$datePrefix-$serverName-$container.docker.tar";
         $downloadSuccess = $ssh->downloadFile($remoteFile, $localFile, true);
 
+        show_progress($current, $total, $container . ' : cleaning up...');
         // Clean up remote file and temporary image
         $ssh->executeCommand("rm -f $remoteFile");
-        $ssh->executeCommand("docker rmi $imageName");
+        $ssh->executeCommand("docker rmi -f $imageName");
 
         if (!$downloadSuccess) {
             echo "\nCould not download container backup for $container\n";
         }
 
         show_progress($current, $total, $container);
+        $current++;
     }
-}
-
-
-/**
- * Recursively remove directory and all contents
- */
-function rrmdir($dir) {
-	if (!is_dir($dir)) {
-		return;
-	}
-	
-	$objects = scandir($dir);
-	foreach ($objects as $object) {
-		if ($object == "." || $object == "..") {
-			continue;
-		}
-		
-		$path = $dir . DIRECTORY_SEPARATOR . $object;
-		
-		if (is_dir($path) && !is_link($path)) {
-			rrmdir($path);
-		} else {
-			unlink($path);
-		}
-	}
-	
-	rmdir($dir);
 }
 
 // Main execution
@@ -534,7 +510,7 @@ if (empty($outdatedItems)) {
 		$current++;
 		
 		if (is_dir($item)) {
-			rrmdir($item);
+			exec("rm -rf " . escapeshellarg($item));
 		} else {
 			unlink($item);
 		}
