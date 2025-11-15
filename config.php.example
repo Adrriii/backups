@@ -1,6 +1,6 @@
 <?php
 
-$DAYS_KEEP = 7;
+$DAYS_KEEP = 7; // Excluding current day
 $DAYS_FOREVER = [
     "01",
     "10",
@@ -26,6 +26,9 @@ $SERVERS = [
         ],
         "DIRS" => [
             "/home/user_example",
+        ],
+        "CONTAINERS" => [
+            "container_name",
         ],
     ]
 ];

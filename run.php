@@ -490,7 +490,8 @@ echo "=== Cleaning Up Old Backups ===\n";
 
 $sqlFiles = glob("*.sql");
 $backupDirs = glob("*.d");
-$allItems = array_merge($sqlFiles, $backupDirs);
+$containerFiles = glob("*.docker.tar");
+$allItems = array_merge($sqlFiles, $backupDirs, $containerFiles);
 $outdatedItems = [];
 
 foreach ($allItems as $item) {
