@@ -412,8 +412,49 @@ function backup_containers(SSHConnection $ssh, array $containers, $serverName) {
     }
 }
 
+function purge() {
+	echo "=== Cleaning Up Old Backups ===\n";
+
+	$sqlFiles = glob("*.sql");
+	$backupDirs = glob("*.d");
+	$containerFiles = glob("*.docker.tar");
+	$allItems = array_merge($sqlFiles, $backupDirs, $containerFiles);
+	$outdatedItems = [];
+
+	foreach ($allItems as $item) {
+		if (is_file_outdated($item)) {
+			$outdatedItems[] = $item;
+		}
+	}
+
+	if (empty($outdatedItems)) {
+		echo "No old backups to delete\n";
+	} else {
+		$total = count($outdatedItems);
+		$current = 0;
+		
+		foreach ($outdatedItems as $item) {
+			show_progress($current, $total, basename($item));
+			$current++;
+			
+			if (is_dir($item)) {
+				exec("rm -rf " . escapeshellarg($item));
+			} else {
+				unlink($item);
+			}
+			show_progress($current, $total, basename($item));
+		}
+	}
+}
+
 // Main execution
 echo "=== Starting Backup Process ===\n\n";
+
+$EAGER_PURGE = $EAGER_PURGE ?? false;
+
+if ($EAGER_PURGE) {
+	purge();
+}
 
 foreach ($SERVERS as $name => $server) {
 	echo "Processing server: $name\n";
@@ -485,38 +526,8 @@ foreach ($SERVERS as $name => $server) {
 	echo "\n";
 }
 
-// Cleanup old backups
-echo "=== Cleaning Up Old Backups ===\n";
-
-$sqlFiles = glob("*.sql");
-$backupDirs = glob("*.d");
-$containerFiles = glob("*.docker.tar");
-$allItems = array_merge($sqlFiles, $backupDirs, $containerFiles);
-$outdatedItems = [];
-
-foreach ($allItems as $item) {
-	if (is_file_outdated($item)) {
-		$outdatedItems[] = $item;
-	}
-}
-
-if (empty($outdatedItems)) {
-	echo "No old backups to delete\n";
-} else {
-	$total = count($outdatedItems);
-	$current = 0;
-	
-	foreach ($outdatedItems as $item) {
-		show_progress($current, $total, basename($item));
-		$current++;
-		
-		if (is_dir($item)) {
-			exec("rm -rf " . escapeshellarg($item));
-		} else {
-			unlink($item);
-		}
-		show_progress($current, $total, basename($item));
-	}
+if (!$EAGER_PURGE) {
+	purge();
 }
 
 echo "\n=== Backup Process Complete ===\n";

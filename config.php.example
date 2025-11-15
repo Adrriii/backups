@@ -1,5 +1,7 @@
 <?php
 
+$EAGER_PURGE = true; // Remove old backups before starting process
+
 $DAYS_KEEP = 7; // Excluding current day
 $DAYS_FOREVER = [
     "01",
