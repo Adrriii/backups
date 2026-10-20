@@ -218,7 +218,14 @@ function show_progress($current, $total, $label = '') {
  */
 function fail_with($message) {
 	echo "COULD NOT RUN SCRIPT : $message\n";
-	die();
+	exit(1);
+}
+
+$FAILURES = [];
+
+function failed($what) {
+	global $FAILURES;
+	$FAILURES[] = $what;
 }
 
 /**
@@ -253,33 +260,40 @@ function is_file_outdated($filename) {
 }
 
 /**
- * Backup a database using mysqldump
+ * Backup a database using mysqldump, compressed with zstd, both at the lowest CPU and IO priority
  */
 function do_backup($db, $server, $address, $dbuser, $dbpass, $current, $total) {
-	$filename = date("Y-m-d") . "-$server-$db.sql";
-	
+	$filename = date("Y-m-d") . "-$server-$db.sql.zst";
+
 	if (file_exists($filename)) {
 		show_progress($current+1, $total, "$db (skipped - exists)");
 		return true;
 	}
-	
+
 	show_progress($current, $total, "$db (backing up...)");
-	
+
+	// --rsyncable: a copy elsewhere only sends what changed since yesterday's file (rsync --fuzzy)
 	$cmd = sprintf(
-		"mysqldump --single-transaction -h %s -u %s -p%s %s > %s",
+		"set -o pipefail; nice -n 19 ionice -c3 mysqldump --single-transaction --quick --routines --events -h %s -u %s %s"
+		. " | nice -n 19 ionice -c3 zstd -q -T1 --rsyncable > %s",
 		escapeshellarg($address),
 		escapeshellarg($dbuser),
-		escapeshellarg($dbpass),
 		escapeshellarg($db),
-		escapeshellarg($filename)
+		escapeshellarg("$filename.partial")
 	);
-	
-	exec($cmd, $output, $return_code);
-	
+
+	// the password goes through the environment, never the argument list (ps)
+	putenv("MYSQL_PWD=$dbpass");
+	exec("bash -c " . escapeshellarg($cmd) . " 2>&1", $output, $return_code);
+	putenv("MYSQL_PWD");
+
 	if ($return_code !== 0) {
-		echo "\nWarning: Database backup for $db returned code $return_code\n";
+		echo "\nWarning: Database backup for $db returned code $return_code: " . implode("\n", $output) . "\n";
+		@unlink("$filename.partial");
+		failed("database $db");
 		return false;
 	}
+	rename("$filename.partial", $filename);
 	show_progress($current+1, $total, "$db (ok)");
 	
 	return true;
@@ -340,7 +354,9 @@ function backup_files(SSHConnection $ssh, array $files, $destDir) {
 		$current++;
 		
 		$localPath = "$destDir$file";
-		$ssh->downloadFile($file, $localPath, true);
+		if (!$ssh->downloadFile($file, $localPath, true)) {
+			failed("file $file");
+		}
 		show_progress($current, $total, $basename);
 	}
 }
@@ -357,7 +373,9 @@ function backup_directories(SSHConnection $ssh, array $dirs, $destDir) {
 		show_progress($current, $total, $dirname);
 		$current++;
 		
-		$ssh->downloadDirectory($dir, $destDir, true);
+		if (!$ssh->downloadDirectory($dir, $destDir, true)) {
+			failed("directory $dir");
+		}
 		show_progress($current, $total, $dirname);
 	}
 }
@@ -379,6 +397,7 @@ function backup_containers(SSHConnection $ssh, array $containers, $serverName) {
         if (!$commitResult['success']) {
             echo "\nCould not commit container $container\n";
             echo "Error: " . implode("\n", $commitResult['output']) . "\n";
+            failed("container $container");
             continue;
         }
 
@@ -390,6 +409,7 @@ function backup_containers(SSHConnection $ssh, array $containers, $serverName) {
         if (!$saveResult['success']) {
             echo "\nCould not save container $container to tar\n";
             echo "Error: " . implode("\n", $saveResult['output']) . "\n";
+            failed("container $container");
             continue;
         }
 
@@ -405,6 +425,7 @@ function backup_containers(SSHConnection $ssh, array $containers, $serverName) {
 
         if (!$downloadSuccess) {
             echo "\nCould not download container backup for $container\n";
+            failed("container $container");
         }
 
         show_progress($current, $total, $container);
@@ -415,7 +436,7 @@ function backup_containers(SSHConnection $ssh, array $containers, $serverName) {
 function purge() {
 	echo "=== Cleaning Up Old Backups ===\n";
 
-	$sqlFiles = glob("*.sql");
+	$sqlFiles = array_merge(glob("*.sql"), glob("*.sql.zst"));
 	$backupDirs = glob("*.d");
 	$containerFiles = glob("*.docker.tar");
 	$allItems = array_merge($sqlFiles, $backupDirs, $containerFiles);
@@ -493,6 +514,7 @@ foreach ($SERVERS as $name => $server) {
 	
 	$ssh = create_ssh_connection($name, $server);
 	if (!$ssh) {
+		failed("ssh to $name");
 		echo "Skipping SSH backups for $name due to connection failure\n\n";
 		continue;
 	}
@@ -528,6 +550,11 @@ foreach ($SERVERS as $name => $server) {
 
 if (!$EAGER_PURGE) {
 	purge();
+}
+
+if ($FAILURES) {
+	echo "\n=== Backup FAILED: " . implode(", ", $FAILURES) . " ===\n";
+	exit(1);
 }
 
 echo "\n=== Backup Process Complete ===\n";

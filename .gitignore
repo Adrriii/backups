@@ -5,3 +5,6 @@ config.php
 *.docker.tar
 
 */
+*.zst
+*.partial
+nightly.sh

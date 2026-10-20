@@ -74,6 +74,18 @@ This means that, if for the same server you want to process the files first and 
   - Empty Files array
   - Empty Directories array
   
+## Load and output
+
+Databases are dumped with `mysqldump --single-transaction`, compressed with `zstd --rsyncable`, both at
+`nice -n 19` and the idle IO class, into `YYYY-MM-DD-<server>-<db>.sql.zst` (restore: `zstd -dc FILE | mysql DB`).
+A dump is written aside and renamed once complete. `run.php` exits 1 when anything failed, naming it.
+
+## Copies elsewhere
+
+`ship.sh <source dir> <destination dir> <keep days> [rsync options...]` copies today's backups to another disk or
+host (either side may be `host:dir`) at the lowest priority on both ends, then deletes that destination's backups
+older than `<keep days>`. `--fuzzy` makes a remote copy send only what changed since yesterday's file.
+
 ## Planned features
   
 In the future, I want to implement (from top priority to low priority) :
