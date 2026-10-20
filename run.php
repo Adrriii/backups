@@ -140,7 +140,7 @@ class SSHConnection {
 	/**
 	 * Download a directory from remote server
 	 */
-	public function downloadDirectory($remoteDir, $localDestRoot, $silent = false) {
+	public function downloadDirectory($remoteDir, $localDestRoot, $silent = false, $excludes = []) {
 		$dirname = basename($remoteDir);
 		
 		// Preserve full path structure
@@ -159,10 +159,11 @@ class SSHConnection {
 		
 		$remote = "{$this->user}@{$this->host}:$remoteDir";
 		$local = escapeshellarg($localPath);
-		
-		$cmd = "rsync -az $ssh_opts $remote $local 2>&1";
+		$exclude = implode("", array_map(fn($e) => " --exclude=" . escapeshellarg($e), $excludes));
+
+		$cmd = "rsync -az$exclude $ssh_opts $remote $local 2>&1";
 		exec($cmd, $output, $return_code);
-		
+
 		if ($return_code !== 0) {
 			if (!$silent) {
 				echo "\nCould not download directory $remoteDir\n";
@@ -364,19 +365,44 @@ function backup_files(SSHConnection $ssh, array $files, $destDir) {
 /**
  * Backup directories from remote server
  */
-function backup_directories(SSHConnection $ssh, array $dirs, $destDir) {
+function backup_directories(SSHConnection $ssh, array $dirs, $destDir, array $excludes) {
 	$total = count($dirs);
 	$current = 0;
-	
+
 	foreach ($dirs as $dir) {
 		$dirname = basename($dir);
 		show_progress($current, $total, $dirname);
 		$current++;
-		
-		if (!$ssh->downloadDirectory($dir, $destDir, true)) {
+
+		if (!$ssh->downloadDirectory($dir, $destDir, true, $excludes)) {
 			failed("directory $dir");
 		}
 		show_progress($current, $total, $dirname);
+	}
+}
+
+/**
+ * Backup live SQLite databases: a consistent copy through SQLite's online backup, taken on the server
+ */
+function backup_sqlite(SSHConnection $ssh, array $databases, $destDir) {
+	$total = count($databases);
+	$current = 0;
+
+	foreach ($databases as $db) {
+		show_progress($current, $total, basename($db));
+		$current++;
+
+		$tmp = "/tmp/backup-" . md5($db) . ".db";
+		$copy = $ssh->executeCommand(
+			"nice -n 19 ionice -c3 python3 -c 'import sqlite3, sys; sqlite3.connect(sys.argv[1]).backup(sqlite3.connect(sys.argv[2]))' "
+			. escapeshellarg($db) . " " . escapeshellarg($tmp)
+		);
+		if (!$copy['success'] || !$ssh->downloadFile($tmp, "$destDir$db", true)) {
+			echo "\nCould not back up SQLite database $db: " . implode("\n", $copy['output']) . "\n";
+			failed("sqlite $db");
+		}
+		$ssh->executeCommand("rm -f " . escapeshellarg($tmp));
+		show_progress($current, $total, basename($db));
 	}
 }
 
@@ -505,7 +531,7 @@ foreach ($SERVERS as $name => $server) {
 	}
 	
 	// Setup SSH connection for file/directory/container backups
-	$needsSSH = !empty($server["FILES"]) || !empty($server["DIRS"]) || !empty($server["CONTAINERS"]);
+	$needsSSH = !empty($server["FILES"]) || !empty($server["DIRS"]) || !empty($server["SQLITE"]) || !empty($server["CONTAINERS"]);
 	
 	if (!$needsSSH) {
 		echo "No SSH backups needed for $name\n\n";
@@ -536,7 +562,13 @@ foreach ($SERVERS as $name => $server) {
 	// Backup directories
 	if (!empty($server["DIRS"])) {
 		echo "Directories:\n";
-		backup_directories($ssh, $server["DIRS"], $destDir);
+		backup_directories($ssh, $server["DIRS"], $destDir, $server["EXCLUDES"] ?? []);
+	}
+
+	// Backup SQLite databases
+	if (!empty($server["SQLITE"])) {
+		echo "SQLite:\n";
+		backup_sqlite($ssh, $server["SQLITE"], $destDir);
 	}
 	
 	// Backup containers
