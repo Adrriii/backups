@@ -19,11 +19,14 @@ KEEP=${3:?}
 shift 3
 day=$(date +%F)
 low='nice -n 19 ionice -c3'
+# one SSH connection per host for the whole copy: hosts that rate-limit new connections (ufw limit) let it through
+ssh="ssh -o BatchMode=yes -o ControlMaster=auto -o ControlPath=/tmp/ship-%C -o ControlPersist=30"
+export RSYNC_RSH=$ssh
 
 # runs a command where <dir> lives
 at() { # at <host:dir or dir> <command>
 	case $1 in
-	*:*) ssh -o BatchMode=yes "${1%%:*}" "$2" ;;
+	*:*) $ssh "${1%%:*}" "$2" ;;
 	*) bash -c "$2" ;;
 	esac
 }
